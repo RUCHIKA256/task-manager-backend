@@ -1,4 +1,4 @@
-# from rest_framework import viewsets
+
 from rest_framework import viewsets
 from .models import Task
 from .serializers import TaskSerializer
@@ -9,53 +9,72 @@ from django_filters.rest_framework import DjangoFilterBackend
 from google.oauth2 import service_account
 from googleapiclient.discovery import build
 import os
+import json
+
+
+SCOPES = ["https://www.googleapis.com/auth/calendar"]
+
+
+def get_google_calendar_service():
+    """
+    Creates and returns Google Calendar API service
+    using service account credentials stored in env variable.
+    """
+
+    creds_json = os.getenv("GOOGLE_CREDENTIALS_JSON")
+
+    if not creds_json:
+        raise Exception("GOOGLE_CREDENTIALS_JSON environment variable not found!")
+
+    creds_dict = json.loads(creds_json)
+
+    credentials = service_account.Credentials.from_service_account_info(
+        creds_dict,
+        scopes=SCOPES
+    )
+
+    service = build("calendar", "v3", credentials=credentials)
+    return service
 
 
 def create_calendar_event(task):
+    """
+    Creates an all-day Google Calendar event based on Task due_date.
+    """
+
     try:
-        print("➡️ Inside create_calendar_event")
-
-        # Go to backend folder (where manage.py is)
-        BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-        BASE_DIR = os.path.dirname(BASE_DIR)  # go up to backend
-
-        credentials_path = os.path.join(BASE_DIR, 'credentials.json')
-
-        print("Correct Credentials Path:", credentials_path)
-
-        if not os.path.exists(credentials_path):
-            print(" credentials.json NOT FOUND at:", credentials_path)
+        if not task.due_date:
+            print("No due_date found, skipping calendar event.")
             return
 
-        credentials = service_account.Credentials.from_service_account_file(
-            credentials_path,
-            scopes=['https://www.googleapis.com/auth/calendar']
-        )
-
-        service = build('calendar', 'v3', credentials=credentials)
+        service = get_google_calendar_service()
 
         event = {
-            'summary': task.title,
-            'description': task.description,
-            'start': {
-                'date': task.due_date.strftime('%Y-%m-%d'),
-                'timeZone': 'Asia/Kolkata',
+            "summary": task.title,
+            "description": task.description or "",
+            "start": {
+                "date": task.due_date.strftime("%Y-%m-%d"),
+                "timeZone": "Asia/Kolkata",
             },
-            'end': {
-                'date': task.due_date.strftime('%Y-%m-%d'),
-                'timeZone': 'Asia/Kolkata',
+            "end": {
+                "date": task.due_date.strftime("%Y-%m-%d"),
+                "timeZone": "Asia/Kolkata",
             },
         }
 
-        service.events().insert(
-            calendarId='ruchikakathuria00@gmail.com',
+        # calendarId can be "primary" OR actual calendar email
+        calendar_id = os.getenv("GOOGLE_CALENDAR_ID", "primary")
+
+        created_event = service.events().insert(
+            calendarId=calendar_id,
             body=event
         ).execute()
 
-        print("Event successfully created in Google Calendar")
+        print(" Google Calendar Event Created Successfully")
+        print("Event ID:", created_event.get("id"))
 
     except Exception as e:
-        print(" Calendar Error:", str(e))
+        print(" Google Calendar Error:", str(e))
 
 
 
@@ -77,8 +96,5 @@ class TaskViewSet(viewsets.ModelViewSet):
         print("DUE DATE:", task.due_date)
         print("===================================")
 
-        if task.due_date:
-            print("➡️ Calling Google Calendar function")
-            create_calendar_event(task)
-        else:
-            print(" No due_date found — event not created")
+        # Google Calendar Event
+        create_calendar_event(task)

@@ -140,9 +140,12 @@ USE_TZ = True
 
 STATIC_URL = 'static/'
 CORS_ALLOWED_ORIGINS = [
-    "http://localhost:5174",
+     "http://localhost:5174",
+    "https://task-mang-frontend-six.vercel.app",
 
 ]
+CORS_ALLOW_CREDENTIALS = True
+
 
 import os
 
@@ -154,5 +157,5 @@ STATIC_ROOT = os.path.join(BASE_DIR, 'staticfiles')
 MIDDLEWARE.insert(1, 'whitenoise.middleware.WhiteNoiseMiddleware')
 SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
 CSRF_TRUSTED_ORIGINS = [
-    "https://your-render-url.onrender.com",
+     "https://task-mang-frontend-six.vercel.app",
 ]
